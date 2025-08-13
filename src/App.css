@@ -1127,6 +1127,24 @@
   cursor: pointer;
 }
 
+.reset-btn {
+  padding: 8px 16px;
+  background: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.reset-btn:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
+}
+
 /* Scrollbar hiding */
 .main-content::-webkit-scrollbar {
   display: none;

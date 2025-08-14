@@ -1,13 +1,14 @@
 const electron = require('electron');
-const { app, BrowserWindow, ipcMain, clipboard } = electron;
+const app = electron.app;
+const BrowserWindow = electron.BrowserWindow;
+const ipcMain = electron.ipcMain;
+const clipboard = electron.clipboard;
+
 const path = require('path');
 const { spawn } = require('child_process');
 const os = require('os');
-const { createOverlay, showOverlay, hideOverlay } = require('./overlay');
-const InputDetector = require('./inputDetector');
 
 let mainWindow;
-let inputDetector = null;
 
 // Windows paste function
 const sendCtrlV = () => {
@@ -18,7 +19,6 @@ const sendCtrlV = () => {
     ], { windowsHide: true });
     
     ps.on('close', (code) => {
-      console.log(`PowerShell exit code: ${code}`);
       if (code === 0) {
         resolve();
       } else {
@@ -27,7 +27,6 @@ const sendCtrlV = () => {
     });
     
     ps.on('error', (error) => {
-      console.error('PowerShell error:', error);
       reject(error);
     });
   });
@@ -56,36 +55,8 @@ function createWindow() {
     mainWindow.show();
   });
 
-  // Create overlay window
-  createOverlay(mainWindow);
-  
-  // Start input detection
-  inputDetector = new InputDetector((inputInfo) => {
-    console.log('Input detected:', inputInfo);
-    if (inputInfo.hasInput) {
-      showOverlay(inputInfo.x, inputInfo.y);
-    } else {
-      hideOverlay();
-    }
-  });
-  
-  // Start clipboard monitoring
   startClipboardMonitoring(mainWindow);
 }
-
-app.on('ready', createWindow);
-
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
-});
-
-app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
-  }
-});
 
 // Clipboard monitoring
 let lastClipboardText = '';
@@ -109,61 +80,45 @@ function startClipboardMonitoring(mainWindow) {
 
 // IPC handlers
 ipcMain.on('set-always-on-top', (event, value) => {
-  const windows = BrowserWindow.getAllWindows();
-  if (windows.length > 0) {
-    windows[0].setAlwaysOnTop(value);
+  if (mainWindow) {
+    mainWindow.setAlwaysOnTop(value);
   }
 });
 
 ipcMain.handle('paste-text', async (event, text) => {
-  console.log('Paste-text IPC called with text:', text.substring(0, 50) + '...');
   try {
-    // Write to clipboard
     clipboard.writeText(text);
-    console.log('Text written to clipboard');
-    
-    // Wait a bit for clipboard to be written
     await new Promise(resolve => setTimeout(resolve, 500));
     
-    // Send paste command
     if (os.platform() === 'win32') {
-      console.log('Attempting PowerShell paste...');
       await sendCtrlV();
-      console.log('PowerShell paste completed');
-    } else {
-      throw new Error('Paste not implemented for this platform');
     }
     
-    console.log('Paste operation successful');
     return { success: true };
   } catch (error) {
-    console.error('Paste error:', error);
     return { success: false, error: error.message };
   }
 });
 
-ipcMain.on('start-overlay-mode', () => {
-  console.log('Starting overlay mode...');
-  if (inputDetector) {
-    inputDetector.start();
-  } else {
-    console.log('No input detector available');
-  }
-});
-
-ipcMain.on('stop-overlay-mode', () => {
-  if (inputDetector) {
-    inputDetector.stop();
-  }
-  hideOverlay();
-});
-
 ipcMain.on('overlay-action', (event, action, text) => {
-  // Handle overlay actions and bring main window to front
   if (mainWindow) {
+    // Show and focus the main window
     mainWindow.show();
     mainWindow.focus();
     mainWindow.webContents.send('handle-overlay-action', action, text);
   }
-  hideOverlay();
+});
+
+app.whenReady().then(createWindow);
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
+});
+
+app.on('activate', () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow();
+  }
 });
